@@ -1,13 +1,15 @@
 import random
 
 from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.metrics import pairwise_kernels
 from sklearn.tree import DecisionTreeClassifier
 from random import randint
 
 import numpy as np
 import datetime
 import warnings
+
+import SimilarityFunction as sim
+from sklearn.metrics import pairwise_kernels
 
 """
 Validation functions
@@ -16,7 +18,7 @@ Validation functions
 
 def _validate_parameters(metric):
     if metric is not None:
-        if metric not in ("rbf", "laplacian"):
+        if metric not in ("rbf", "laplacian", "custom"):
             raise ValueError(
                 'Invalid preset "%s" for kernel metric'
                 % metric
@@ -73,7 +75,6 @@ def _randomChoice_bootstrap(X, y, K, n_estimators, seed_replacement, verbose=0):
             else:
                 pool_prob[j] = K[seed][j] / pool_tot
 
-
         # Extraction
         pick = np.random.choice(pool, size=(len(pool)) - 1, replace=True, p=pool_prob)
 
@@ -117,9 +118,9 @@ def _pickDiverseSeed(K, seed, verbose):
 def _autofill(X_sets, y_sets, X, y, n_classes, verbose):
 
     if verbose > 0:
-        print(datetime.datetime.now().time(),"Filling up training sets with missing classes...")
+        print(datetime.datetime.now().time(), "Filling up training sets with missing classes...")
 
-    #Creating list of seeds to fill the sets
+    # Creating list of seeds to fill the sets
     X_seeds = [i[0] for i in X_sets]
     y_seeds = [i[0] for i in y_sets]
 
@@ -140,7 +141,6 @@ def _autofill(X_sets, y_sets, X, y, n_classes, verbose):
                     y_seeds.append(y[j])
                     X_seeds.append(X[j])
 
-
     for i in range(len(y_sets)):  # for each training set
 
         # calculate missing classes
@@ -148,7 +148,7 @@ def _autofill(X_sets, y_sets, X, y, n_classes, verbose):
         missing_classes = np.setxor1d(set_classes, classes)
 
         # unique indexes to choose which elements to replace in the set
-        indexes = random.sample(range(0, len(X_sets[0])),len(missing_classes))
+        indexes = random.sample(range(0, len(X_sets[0])), len(missing_classes))
 
         if len(set_classes) < n_classes:
             if verbose > 1:
@@ -206,7 +206,7 @@ class TreeStrainsClassifier(BaseEstimator, ClassifierMixin):
 
     def __init__(self, n_jobs=1, n_estimators=50,
                  base_estimator=DecisionTreeClassifier(),
-                 similarity_metric="rbf", seed_replacement = True, autofill=False,
+                 similarity_metric="rbf", seed_replacement=True, autofill=False,
                  verbose=0):
 
         self.n_jobs = n_jobs
@@ -229,17 +229,20 @@ class TreeStrainsClassifier(BaseEstimator, ClassifierMixin):
 
         self.n_classes_ = np.max(y) + 1
 
-        print("class/elements ratio:",len(X)/self.n_classes_)
+        print("class/elements ratio:", len(X)/self.n_classes_)
 
         if self.verbose > 0:
             print(datetime.datetime.now().time(), "Bootstrapping...")
 
-        K = pairwise_kernels(X, metric=self.similarity_metric, n_jobs=self.n_jobs)
+        K = sim.SimilarityFunction(X, metric=self.similarity_metric, n_jobs=self.n_jobs)
 
         if self.verbose > 1:
             print("Calculated similarity matrix of shape", np.shape(K))
 
-        self.X_sets, self.y_sets = _randomChoice_bootstrap(X, y, K, self.n_estimators, seed_replacement = self.seed_replacement, verbose=self.verbose)
+        self.X_sets, self.y_sets = _randomChoice_bootstrap(X, y, K,
+                                                           n_estimators=self.n_estimators,
+                                                           seed_replacement=self.seed_replacement,
+                                                           verbose=self.verbose)
 
         if self.autofill:
             self.X_sets, self.y_sets = _autofill(self.X_sets, self.y_sets, X, y, self.n_classes_, self.verbose)
@@ -297,12 +300,11 @@ class TreeStrainsClassifier(BaseEstimator, ClassifierMixin):
                 for j in range(len(indexes)):
                     pool.append(self.X_sets[i][indexes[j]])
 
-                K.append(pairwise_kernels(X, pool, metric=self.similarity_metric,
+                K.append(sim.SimilarityFunction(X, Y=pool, metric=self.similarity_metric,
                                           n_jobs=self.n_jobs))
 
-
             else:
-                K.append(pairwise_kernels(X, self.X_sets[i][0].reshape(1, -1), metric=self.similarity_metric,
+                K.append(sim.SimilarityFunction(X, Y=self.X_sets[i][0].reshape(1, -1), metric=self.similarity_metric,
                                           n_jobs=self.n_jobs))
 
             predictions.append(self.estimators_[i].predict_proba(X))
@@ -345,15 +347,11 @@ class TreeStrainsClassifier(BaseEstimator, ClassifierMixin):
                         print("model", j, "votes", np.argmax(votes[i][j]), "having ~", np.round(sim_value[j], 4),
                               "similarity")
 
-
-
                 out[i] = (np.sum(votes[i], axis=0)) / self.n_estimators
 
                 # index = np.argmax((np.sum(votes[i], axis=0)))
                 #
                 # out[i][index] = votes[i][j]
-
-
 
             if self.verbose > 1:
                 print("SAMPLE", i, "PREDICTION:", out[i], )
