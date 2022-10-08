@@ -4,14 +4,13 @@ import os
 from sklearn.model_selection import GridSearchCV
 from Code.TreeStrains import TreeStrainsClassifier
 from sklearn.metrics import pairwise_kernels
-import numpy as np
 
 
 def write_results(dataset_key, key, value):
     path = "./Results/JSON/{}.json".format(dataset_key)
     if not os.path.exists(path):
         dictionary = {}
-        with open(path, 'w') as outfile:s
+        with open(path, 'w') as outfile:
             json.dump(dictionary, outfile, indent=4)
 
     if os.path.exists(path):
@@ -41,7 +40,7 @@ def find_best_metric(X, y, dataset):
         try:
             pairwise_kernels(X, metric=metric, n_jobs=-1)
             valid_metrics.append(metric)
-        except ValueError as ve:
+        except ValueError:
             pass
 
     param_grid = [
