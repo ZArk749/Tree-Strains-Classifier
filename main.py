@@ -1,43 +1,17 @@
-from Code.CV import CrossValidation
+from Code.CV import cross_validation
 import settings as clf
 import pandas as pd
 import numpy as np
-import re
-import json
-import os
+from Code import Utility as ut
 
+from sklearn.tree import DecisionTreeClassifier
 
-def WriteOnDict(keyDataset, Key, Value):
-    path = "./Results/JSON/{}.json".format(keyDataset)
-    if not os.path.exists(path):
-        dictionary = {}
-        with open(path, 'w') as outfile:
-            json.dump(dictionary, outfile, indent=4)
+from Code.TreeStrains import TreeStrainsClassifier
 
-    if os.path.exists(path):
-        json_file = open(path, "r")
-        dictionary = json.load(json_file)
-        json_file.close()
-
-        dictionary[Key] = Value
-
-        with open(path, 'w') as outfile:
-            json.dump(dictionary, outfile, indent=4)
-
-
-def ExtractNameDataset(url):
-    matches = re.finditer('/', url)
-    matches_positions = [match.start() for match in matches]
-
-    lastSlash = matches_positions[-1] + 1
-
-    return url[lastSlash:-4]
 
 if __name__ == '__main__':
 
-    datasets = clf.getDataset()
-
-    model = clf.getClassifier()
+    datasets = clf.get_datasets()
 
     for i in datasets:
         print(i)
@@ -47,13 +21,26 @@ if __name__ == '__main__':
         y = dataset.iloc[:, -1:].to_numpy()
         y = np.ravel(y.astype(int))
 
-        metrics = CrossValidation(model, X, y)
-        # print(metrics)
+        if clf.do_grid_search():
 
-        nameDataset = ExtractNameDataset(i)
+            ut.find_best_metric(X, y, i)
 
-        for key in metrics:
-            WriteOnDict(nameDataset, 'TreeStrains' + key, metrics[key])
+        else:
+
+            dictionary = ut.load_dict("./Datasets/.best_params.json")
+
+            nameDataset = ut.extract_dataset_name(i)
+
+            metric = dictionary[nameDataset]
+            print(metric)
+
+            model = TreeStrainsClassifier(metric=metric, verbose=1)
+
+            metrics = cross_validation(model, X, y)
+            # print(metrics)
+
+            for key in metrics:
+                ut.write_results(nameDataset, 'TreeStrains' + key, metrics[key])
 
 
 

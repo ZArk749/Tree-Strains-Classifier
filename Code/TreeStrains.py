@@ -8,8 +8,8 @@ import numpy as np
 import datetime
 import warnings
 
-import SimilarityFunction as sim
-from sklearn.metrics import pairwise_kernels
+from Code.SimilarityFunction import SimilarityFunction
+
 
 """
 Validation functions
@@ -18,7 +18,8 @@ Validation functions
 
 def _validate_parameters(metric):
     if metric is not None:
-        if metric not in ("rbf", "laplacian", "custom"):
+        if metric not in ('additive_chi2', 'chi2', 'linear', 'poly', 'polynomial', 'rbf', 'laplacian', 'sigmoid',
+                          'cosine', "custom"):
             raise ValueError(
                 'Invalid preset "%s" for kernel metric'
                 % metric
@@ -45,7 +46,7 @@ Support functions
 """
 
 
-def _randomChoice_bootstrap(X, y, K, n_estimators, seed_replacement, verbose=0):
+def _similarity_bootstrap(X, y, K, n_estimators, seed_replacement, verbose=0):
     # Initializing list of random training sets
     X_sets = []
     y_sets = []
@@ -57,7 +58,7 @@ def _randomChoice_bootstrap(X, y, K, n_estimators, seed_replacement, verbose=0):
         instance_y = np.empty(np.shape(y))
 
         # creating seed for specific training set
-        seed = _pickDiverseSeed(K, seed, verbose)
+        seed = _pick_seed(K, seed, verbose)
 
         instance_X[0] = X[seed]
         instance_y[0] = y[seed]
@@ -69,9 +70,9 @@ def _randomChoice_bootstrap(X, y, K, n_estimators, seed_replacement, verbose=0):
         for j in range(np.shape(X)[0]):
 
             if K[seed][j] == 0 and not seed_replacement:
+                pool_prob[j] = 0
                 if verbose > 1:
                     print("Un-chosen seed")
-                pool_prob[j] = 0
             else:
                 pool_prob[j] = K[seed][j] / pool_tot
 
@@ -92,7 +93,7 @@ def _randomChoice_bootstrap(X, y, K, n_estimators, seed_replacement, verbose=0):
     return X_sets, y_sets
 
 
-def _pickDiverseSeed(K, seed, verbose):
+def _pick_seed(K, seed, verbose):
     # creating seed for specific training set, choosing by inverse similarity to previous set
     if seed is None:
         x = randint(0, len(K) - 1)
@@ -109,7 +110,7 @@ def _pickDiverseSeed(K, seed, verbose):
                                      p=sim_n / np.sum(sim_n))[0]
 
         if verbose > 1:
-            print("Chose new seed", candidate, "based on previous one:", seed, "w/ similarity:", K[candidate][seed])
+            print("Chose new seed", candidate, "based on inverse similarity w/ previous one:", K[candidate][seed])
 
         return candidate
 
@@ -189,12 +190,16 @@ class InvalidBootstrapError(Exception):
     base_estimator : estimator, default=DecisionTreeClassifier()
         The estimator fitted on  each bootstrapped set.     
 
-    similarity_metric : {"rbf", "laplacian", "cosine"}, string, default="rbf"
+    metric : {"rbf", "laplacian"}, string, default="rbf"
         The metric used for pairwise_kernels().
         
+    seed_replacement : boolean, default = True
+        TODO
+        Determines if seed can be picked again in the bootstrap(?)
+        
     autofill : boolean, default = False
-        automatically fixes bootstrapped training sets that do not contain all classes.
-        If true, the InvalidBootstrapError exception is avoided.
+        Fixes bootstrapped training sets that do not contain all classes.
+        Avoids raising the InvalidBootstrapError exception if set to True.
 
     verbose : int, default = 0
         Controls verbosity during fitting and predicting, 0 being none and 3 being the most detailed. 
@@ -206,13 +211,13 @@ class TreeStrainsClassifier(BaseEstimator, ClassifierMixin):
 
     def __init__(self, n_jobs=1, n_estimators=50,
                  base_estimator=DecisionTreeClassifier(),
-                 similarity_metric="rbf", seed_replacement=True, autofill=False,
+                 metric="rbf", seed_replacement=True, autofill=False,
                  verbose=0):
 
         self.n_jobs = n_jobs
         self.n_estimators = n_estimators
         self.base_estimator = base_estimator
-        self.similarity_metric = similarity_metric
+        self.metric = metric
         self.seed_replacement = seed_replacement
         self.autofill = autofill
         self.verbose = verbose
@@ -223,26 +228,24 @@ class TreeStrainsClassifier(BaseEstimator, ClassifierMixin):
         self.estimators_ = None
         self.n_classes_ = None
 
-        _validate_parameters(self.similarity_metric)
+        _validate_parameters(self.metric)
 
     def fit(self, X, y):
 
         self.n_classes_ = np.max(y) + 1
 
-        print("class/elements ratio:", len(X)/self.n_classes_)
-
         if self.verbose > 0:
             print(datetime.datetime.now().time(), "Bootstrapping...")
 
-        K = sim.SimilarityFunction(X, metric=self.similarity_metric, n_jobs=self.n_jobs)
+        K = SimilarityFunction(X, metric=self.metric, n_jobs=self.n_jobs)
 
         if self.verbose > 1:
             print("Calculated similarity matrix of shape", np.shape(K))
 
-        self.X_sets, self.y_sets = _randomChoice_bootstrap(X, y, K,
-                                                           n_estimators=self.n_estimators,
-                                                           seed_replacement=self.seed_replacement,
-                                                           verbose=self.verbose)
+        self.X_sets, self.y_sets = _similarity_bootstrap(X, y, K,
+                                                         n_estimators=self.n_estimators,
+                                                         seed_replacement=self.seed_replacement,
+                                                         verbose=self.verbose)
 
         if self.autofill:
             self.X_sets, self.y_sets = _autofill(self.X_sets, self.y_sets, X, y, self.n_classes_, self.verbose)
@@ -300,12 +303,12 @@ class TreeStrainsClassifier(BaseEstimator, ClassifierMixin):
                 for j in range(len(indexes)):
                     pool.append(self.X_sets[i][indexes[j]])
 
-                K.append(sim.SimilarityFunction(X, Y=pool, metric=self.similarity_metric,
-                                          n_jobs=self.n_jobs))
+                K.append(SimilarityFunction(X, Y=pool, metric=self.metric,
+                                            n_jobs=self.n_jobs))
 
             else:
-                K.append(sim.SimilarityFunction(X, Y=self.X_sets[i][0].reshape(1, -1), metric=self.similarity_metric,
-                                          n_jobs=self.n_jobs))
+                K.append(SimilarityFunction(X, Y=self.X_sets[i][0].reshape(1, -1), metric=self.metric,
+                                            n_jobs=self.n_jobs))
 
             predictions.append(self.estimators_[i].predict_proba(X))
 

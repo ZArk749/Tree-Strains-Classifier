@@ -6,7 +6,7 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import train_test_split
 
 
-def CrossValidation(classifier, X, y):
+def cross_validation(classifier, X, y):
     start_time = time.time()
 
     skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=0)
@@ -50,3 +50,6 @@ def CrossValidation(classifier, X, y):
         'macrof1': macrof1CV,
         'time': totalTimeCV,
     }
+
+
+
