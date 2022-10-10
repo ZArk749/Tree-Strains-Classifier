@@ -109,9 +109,9 @@
     "SPA_DecisionTreemicrof1": 0.9259259259259259,
     "SPA_DecisionTreemacrof1": 0.7337284406486612,
     "SPA_DecisionTreetime": 80.08504247665405,
-    "TreeStrainsacc": 0.918908891469867,
-    "TreeStrainsbalacc": 0.7396747438387413,
-    "TreeStrainsmicrof1": 0.918908891469867,
-    "TreeStrainsmacrof1": 0.7186998074392057,
-    "TreeStrainstime": 0.7636463642120361
+    "TreeStrainsacc": 0.932797780358756,
+    "TreeStrainsbalacc": 0.7505063061597333,
+    "TreeStrainsmicrof1": 0.932797780358756,
+    "TreeStrainsmacrof1": 0.7652312957260899,
+    "TreeStrainstime": 1.4577620029449463
 }

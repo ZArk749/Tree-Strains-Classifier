@@ -1,4 +1,4 @@
-# Tree-Strains-Classifier
+# TreeStrainsClassifier
  
 Ensemble classifier that bootstraps the training set and weighs predictions voting based on kernel similarity.
 

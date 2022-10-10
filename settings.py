@@ -29,7 +29,7 @@ def get_datasets():
         # './Datasets/pen.csv',
         # './Datasets/qualitywine.csv',
         # './Datasets/robot.csv',
-        './Datasets/sensorless.csv',
+        # './Datasets/sensorless.csv',
         # './Datasets/shill.csv',
         # './Datasets/sonar.csv',
         # './Datasets/taiwan.csv',
@@ -37,14 +37,14 @@ def get_datasets():
         # './Datasets/vowel.csv',
         # './Datasets/wifi.csv',
         # './Datasets/wine.csv',
-        # './Datasets/20newsgroups.csv',
-        # './Datasets/data0.csv',
-        # './Datasets/data5.csv',
-        # './Datasets/data10.csv',
-        # './Datasets/data25.csv',
-        # './Datasets/data50.csv',
         # './Datasets/myocardial.csv',
-        # './Datasets/micromass.csv'
+        './Datasets/20newsgroups.csv'
+        # # './Datasets/data0.csv',
+        # # './Datasets/data5.csv',
+        # # './Datasets/data10.csv',
+        # # './Datasets/data25.csv',
+        # # './Datasets/data50.csv',
+        # # './Datasets/micromass.csv'
     ]
 
     return datasets
@@ -55,6 +55,10 @@ def get_classifier():
                                   metric='custom', autofill=True)
 
     return model
+
+
+def do_metric_search():
+    return False
 
 
 def do_grid_search():

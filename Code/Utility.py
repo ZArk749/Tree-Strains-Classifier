@@ -76,6 +76,15 @@ def find_best_metric(X, y, dataset):
 
         with open(path, 'w') as outfile:
             json.dump(dictionary, outfile, indent=4)
+
+
+def grid_search(X, y, param_grid):
+    g_search = GridSearchCV(TreeStrainsClassifier(), param_grid, cv=3,  # three folds crossVal
+                            scoring='neg_mean_squared_error',
+                            return_train_score=True)
+    g_search.fit(X, y)
+    return g_search.best_estimator_
+    pass
             
 
 def load_dict(path):

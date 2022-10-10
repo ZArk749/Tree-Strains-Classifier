@@ -46,16 +46,18 @@ Support functions
 """
 
 
-def _similarity_bootstrap(X, y, K, n_estimators, seed_replacement, verbose=0):
+def _similarity_bootstrap(X, y, K, n_estimators, seed_replacement, ratio, verbose=0):
     # Initializing list of random training sets
     X_sets = []
     y_sets = []
 
+    ratio_size = int(len(X) * ratio)
+
     seed = None
 
     for i in range(0, n_estimators):  # for each new set
-        instance_X = np.empty(np.shape(X))
-        instance_y = np.empty(np.shape(y))
+        instance_X = np.empty(np.shape(X), dtype=type(X[0]))
+        instance_y = np.empty(np.shape(y), dtype=type(y[0]))
 
         # creating seed for specific training set
         seed = _pick_seed(K, seed, verbose)
@@ -67,9 +69,9 @@ def _similarity_bootstrap(X, y, K, n_estimators, seed_replacement, verbose=0):
         pool_prob = np.zeros(np.shape(X)[0])  # Probability to be picked for each index in the sheet
         pool_tot = np.sum(K[seed])  # Sum of similarities with every point to the seed
 
-        for j in range(np.shape(X)[0]):
+        for j in range(len(X)):
 
-            if K[seed][j] == 0 and not seed_replacement:
+            if K[seed][j] == 0 and not seed_replacement: # might break pool_tot?
                 pool_prob[j] = 0
                 if verbose > 1:
                     print("Un-chosen seed")
@@ -77,16 +79,20 @@ def _similarity_bootstrap(X, y, K, n_estimators, seed_replacement, verbose=0):
                 pool_prob[j] = K[seed][j] / pool_tot
 
         # Extraction
-        pick = np.random.choice(pool, size=(len(pool)) - 1, replace=True, p=pool_prob)
+        pick = np.random.choice(pool, size=ratio_size - 1, replace=True, p=pool_prob)
 
         if verbose > 2:
             print("Populating set", i, "...")
 
-        for j in range(len(pick)):
-            instance_X[j + 1] = X[pick[j]]
-            instance_y[j + 1] = y[pick[j]]
+        for j in range(len(X)-1):
+            try:
+                instance_X[j + 1] = X[pick[j]]
+                instance_y[j + 1] = y[pick[j]]
+            except:
+                index = randint(0, len(X)-1)
+                instance_X[j + 1] = X[index]
+                instance_y[j + 1] = y[index]
 
-        # print(instance_y)
         X_sets.append(instance_X)
         y_sets.append(instance_y)
 
@@ -167,12 +173,7 @@ def _autofill(X_sets, y_sets, X, y, n_classes, verbose):
     return X_sets, y_sets
 
 
-""" Custom errors """
-
-
-class NoSimilarityError(Exception):
-    """Raised when similarity scores are zero"""
-    pass
+""" Custom exceptions """
 
 
 class InvalidBootstrapError(Exception):
@@ -187,10 +188,16 @@ class InvalidBootstrapError(Exception):
     n_estimators : int, default = 50
         The number of models to train.
 
-    base_estimator : estimator, default=DecisionTreeClassifier()
+    base_estimator : estimator, default = DecisionTreeClassifier()
         The estimator fitted on  each bootstrapped set.     
+        
+    K : ndarray, default = None
+        Pre-computed Kernel matrix for fitting, useful for multiple folds.  
+        
+    ratio : float, default = 1
+        Percentage of elements picked based on similarity during bootstrapping.
 
-    metric : {"rbf", "laplacian"}, string, default="rbf"
+    metric : {'additive_chi2', 'chi2', 'linear', 'poly', 'polynomial', 'rbf', 'laplacian', 'sigmoid', 'cosine', 'custom'}, string, default="rbf"
         The metric used for pairwise_kernels().
         
     seed_replacement : boolean, default = True
@@ -210,13 +217,14 @@ class InvalidBootstrapError(Exception):
 class TreeStrainsClassifier(BaseEstimator, ClassifierMixin):
 
     def __init__(self, n_jobs=1, n_estimators=50,
-                 base_estimator=DecisionTreeClassifier(),
+                 base_estimator=DecisionTreeClassifier(), ratio=1,
                  metric="rbf", seed_replacement=True, autofill=False,
                  verbose=0):
 
         self.n_jobs = n_jobs
         self.n_estimators = n_estimators
         self.base_estimator = base_estimator
+        self.ratio = ratio
         self.metric = metric
         self.seed_replacement = seed_replacement
         self.autofill = autofill
@@ -245,6 +253,7 @@ class TreeStrainsClassifier(BaseEstimator, ClassifierMixin):
         self.X_sets, self.y_sets = _similarity_bootstrap(X, y, K,
                                                          n_estimators=self.n_estimators,
                                                          seed_replacement=self.seed_replacement,
+                                                         ratio=self.ratio,
                                                          verbose=self.verbose)
 
         if self.autofill:
@@ -255,6 +264,7 @@ class TreeStrainsClassifier(BaseEstimator, ClassifierMixin):
                 'Some or all training sets do not contain at least one entry '
                 'for each of the %s classes. Consider the following solutions:\n'
                 '- re-run the fit() method(may take some attempts);\n'
+                '- add more random elements by decreasing ratio;\n'
                 '- use a more relevant similarity metric;\n'
                 '- set autofill to True if not so already;\n'
                 '- use a more balanced dataset.\n'
@@ -342,7 +352,6 @@ class TreeStrainsClassifier(BaseEstimator, ClassifierMixin):
                 out[i] = (np.sum(votes[i], axis=0))
             else:
                 warnings.warn("No similarity between input and training set. Using hard voting instead")
-                # todo
                 for j in range(0, self.n_estimators):
                     votes[i][j] = predictions[j][i]
 
